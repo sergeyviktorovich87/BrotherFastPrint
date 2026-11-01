@@ -19,6 +19,7 @@ Android по-прежнему создаёт и отключает BrotherPrintS
 ## Диагностика
 
 - Для queue/probe сохраняются elapsed lateness, `awake_late_ms` и `sleep_ms`.
+- Заголовок отчёта также разделяет elapsed_ms и настоящий uptime_ms; раньше поле uptime_ms ошибочно содержало elapsedRealtime.
 - Callback и принятие задания фиксируют важность процесса, interactive/idle/power-save, elapsed/uptime.
 - Получение PDF имеет отдельные begin/end события.
 - Журнал содержит keepalive_requested/foreground_started/wake_acquired/stopped либо категории отказов.

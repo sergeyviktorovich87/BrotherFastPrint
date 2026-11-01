@@ -54,7 +54,7 @@ class Diagnostics(private val context: Context) {
         val synced = checkpoint()
         append("BrotherFastPrint diagnostic report\n")
         append("app_version=${BuildConfig.VERSION_NAME} package=${context.packageName}\n")
-        append("captured_utc=${Instant.now()} session=$session uptime_ms=${SystemClock.elapsedRealtime()}\n")
+        append("captured_utc=${Instant.now()} session=$session elapsed_ms=${SystemClock.elapsedRealtime()} uptime_ms=${SystemClock.uptimeMillis()}\n")
         append("api=${Build.VERSION.SDK_INT} manufacturer=${Build.MANUFACTURER} model=${Build.MODEL}\n")
         val endpoint = runCatching { PrinterConfig.endpoint(context) }.getOrNull()
         append("printer_host=${endpoint?.host ?: "invalid"} raw_port=${endpoint?.port ?: 0} duplex=${PrinterConfig.duplex(context)} raster_profile=${ru.brotherfastprint.core.RasterProfile.technicalName(PrinterConfig.rasterProfile(context))} toner_save=${PrinterConfig.tonerSave(context)}\n")
