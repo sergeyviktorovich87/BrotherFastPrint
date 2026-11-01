@@ -137,13 +137,14 @@ class PrintKeepAliveService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onDestroy() {
         main.removeCallbacks(pulse)
-        try { wake?.let { if (it.isHeld) it.release() } }
+        var released = false
+        try { wake?.let { if (it.isHeld) it.release() }; released = true }
         catch (e: RuntimeException) { PrintKeepAlive.log(this, "keepalive_wake_release_error category=${e.javaClass.simpleName}") }
         wake = null
         if (promoted) stopForeground(STOP_FOREGROUND_REMOVE)
         promoted = false
         PrintKeepAlive.detach(this)
-        PrintKeepAlive.log(this, "keepalive_stopped wake_released=true")
+        PrintKeepAlive.log(this, "keepalive_stopped wake_released=$released")
         super.onDestroy()
     }
     companion object {
