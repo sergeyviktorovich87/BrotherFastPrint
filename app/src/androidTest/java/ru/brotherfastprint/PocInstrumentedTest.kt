@@ -20,6 +20,7 @@ import ru.brotherfastprint.core.RasterProfile
 import ru.brotherfastprint.render.RenderClient
 import ru.brotherfastprint.service.BrotherPrintService
 import ru.brotherfastprint.printing.ServiceDispatcher
+import ru.brotherfastprint.printing.PrintKeepAliveService
 import java.io.File
 
 /** Device-only: validates the actual PdfRenderer, Binder FD transfer, JNI loader and sandbox. */
@@ -121,6 +122,15 @@ class PocInstrumentedTest {
         assertTrue(info.exported)
         assertEquals("android.permission.BIND_PRINT_SERVICE", info.permission)
         assertTrue(info.metaData.getInt("android.printservice") != 0)
+    }
+
+    @Test fun testKeepAliveIsPrivateAndDeclaresConnectedDeviceType() {
+        @Suppress("DEPRECATION")
+        val info = context.packageManager.getServiceInfo(ComponentName(context, PrintKeepAliveService::class.java), 0)
+        assertFalse(info.exported)
+        if (android.os.Build.VERSION.SDK_INT >= 29)
+            assertTrue(info.foregroundServiceType and android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE != 0)
+        assertEquals(PackageManager.PERMISSION_GRANTED, context.checkSelfPermission(android.Manifest.permission.WAKE_LOCK))
     }
 
     @Test fun testPhotoProfileTravelsThroughSandboxAndKeepsJobFraming() {

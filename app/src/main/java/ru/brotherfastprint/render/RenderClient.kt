@@ -77,7 +77,7 @@ class RenderClient(private val context: Context) {
                         override fun event(code: String, elapsedMs: Long, value: Long) {
                             if (code == "page_count") total = value.toInt()
                             if (code == "page_begin") { page = value.toInt(); progress(page, total) }
-                            if (code in setOf("pdf_open", "page_count", "page_begin", "pdf_page_index", "blank_back", "render_begin", "render_end_ms", "mono_end_ms", "encode_begin", "encode_page_end_bytes", "page_done", "encode_end_bytes"))
+                            if (code in setOf("pdf_open", "page_count", "raster_profile", "pdf_width_pt", "pdf_height_pt", "page_begin", "pdf_page_index", "blank_back", "render_begin", "render_end_ms", "mono_end_ms", "encode_begin", "encode_page_end_bytes", "page_done", "encode_end_bytes"))
                                 log("sandbox_ms=$elapsedMs page=$page/$total $code=$value")
                         }
                     }

@@ -137,92 +137,95 @@ class PrintEngine(private val context: Context, private val diagnostics: Diagnos
         val queuedAt = SystemClock.elapsedRealtime()
         synchronized(lock) { pending++ }
         publish()
+        val keepAlive = PrintKeepAlive.acquire(context, "job")
         worker.execute {
-            synchronized(lock) { current = token; started = SystemClock.elapsedRealtime(); lines.clear() }
-            log("job_received app_version=${BuildConfig.VERSION_NAME} source=$origin queued_ms=${SystemClock.elapsedRealtime() - queuedAt} copies=${options.copies} duplex=${options.duplex} raster_profile=${RasterProfile.technicalName(options.rasterProfile)} toner_save=${options.tonerSave} dpi=600 paper=A4 mode=preload")
-            synchronized(lock) { stage = "prepare"; page = 0; pages = 0 }
-            var dir: File? = null
-            val result = try {
-                token.check()
-                LocalNetwork.routes(context, endpoint, ::log)
-                if (StatFs(spool.absolutePath).availableBytes < DISK_RESERVE + 16 * MIB) throw SpoolSpaceException()
-                val jobDir = File(spool, "job_${UUID.randomUUID()}")
-                check(jobDir.mkdir()); dir = jobDir
-                val pdf = File(jobDir, "input.pdf")
-                status("Получение PDF…")
-                source(pdf, token)
-                token.check()
-                if (pdf.length() !in 1..MAX_PDF_BYTES) throw PrintLimitException()
-                log("pdf_spooled bytes=${pdf.length()}")
-                val budget = minOf(MAX_HBP_BYTES, StatFs(spool.absolutePath).availableBytes - DISK_RESERVE)
-                if (budget < 16 * MIB) throw SpoolSpaceException()
-                val hbp = File(jobDir, "job.hbp")
-                val size = RenderClient(context).prepare(pdf, File(jobDir, "page.mono"), hbp, token, options, budget, { page, total ->
-                    synchronized(lock) { this.page = page; this.pages = total }
-                    status("Подготовка стороны $page из $total…")
-                    main.post { progress(page, total) }
-                }, ::log)
-                token.check()
-                log("prepared bytes=$size")
-                synchronized(lock) { stage = "send" }
-                status("Передача подготовленного задания…")
-                main.post { progress(0, 0) }
-                log("tcp_begin host=${endpoint.host} port=${endpoint.port}")
-                var lastProgress = 0L
-                val routes = LocalNetwork.routes(context, endpoint, ::log)
-                val bytes = RawTcpTransport(totalTimeoutMs = 10 * 60_000, diagnostic = ::log).send(hbp, endpoint, token, routes) { count ->
-                    if (count - lastProgress >= MIB || count == size) {
-                        lastProgress = count; log("tcp_accepted_bytes=$count")
-                    }
-                }
-                log("tcp_end accepted_bytes=$bytes")
-                ReachabilityCache.markOnline(context, endpoint)
-                synchronized(lock) { reachable = true }
-                PrintOutcome(true, false, true, "Задание передано принтеру. RAW не подтверждает выход бумаги.")
-            } catch (e: TransmissionException) {
-                val info = TcpDiagnostics.describe(e)
-                log("tcp_failed phase=${e.phase} reason=${info.reason} category=${info.category} may_have_printed=${e.mayHavePrinted} accepted_bytes=${e.acceptedBytes} cancelled=${token.isCancelled}")
-                if (info.detail.isNotEmpty()) log("tcp_error_detail=${info.detail}")
-                val message = if (e.mayHavePrinted) "Передача прервана. Часть страниц могла напечататься. Проверьте принтер перед повтором."
-                    else if (token.isCancelled) "Отменено до передачи данных"
-                    else when (info.reason) {
-                        TcpFailureReason.REFUSED -> "Принтер отказал в подключении. Проверьте RAW-порт 9100."
-                        TcpFailureReason.PERMISSION -> "Android запретил сеть. Проверьте разрешения локальной сети и VPN."
-                        TcpFailureReason.UNREACHABLE -> "Нет маршрута к принтеру через Wi-Fi."
-                        TcpFailureReason.TIMEOUT -> "Принтер не ответил вовремя."
-                        TcpFailureReason.SOCKET_API -> "Ошибка сокета Android. Скопируйте технический лог."
-                        TcpFailureReason.UNKNOWN -> "Ошибка подключения. Скопируйте технический лог."
-                    }
-                PrintOutcome(false, token.isCancelled, e.mayHavePrinted, message)
-            } catch (e: Exception) {
-                log("job_failed category=${e.javaClass.simpleName} cancelled=${token.isCancelled}")
-                val message = if (token.isCancelled || e is CancellationException || e is RenderFailure && e.errorCode == 4)
-                    "Подготовка отменена; данные не отправлены"
-                else when (e) {
-                    is NoLocalNetworkException -> "Подключите телефон к Wi-Fi сети принтера"
-                    is SpoolSpaceException -> "Недостаточно места во внутреннем хранилище. Освободите место и повторите."
-                    is PrintLimitException -> "Превышен лимит: PDF 256 МБ, задание 500 страниц с копиями, поток 512 МБ."
-                    is RenderFailure -> {
-                        log("renderer_error=${e.errorCode}")
-                        when (e.errorCode) {
-                            2 -> "PDF защищён паролем или не поддерживается"
-                            3 -> "Некорректный PDF, размер страницы или диапазон страниц"
-                            6 -> "Превышен лимит задания или доступного места для подготовки"
-                            else -> "Ошибка подготовки PDF. Скопируйте технический лог."
+            try {
+                synchronized(lock) { current = token; started = SystemClock.elapsedRealtime(); lines.clear() }
+                log("job_received app_version=${BuildConfig.VERSION_NAME} source=$origin queued_ms=${SystemClock.elapsedRealtime() - queuedAt} copies=${options.copies} duplex=${options.duplex} raster_profile=${RasterProfile.technicalName(options.rasterProfile)} toner_save=${options.tonerSave} dpi=600 paper=A4 mode=preload")
+                synchronized(lock) { stage = "prepare"; page = 0; pages = 0 }
+                var dir: File? = null
+                val result = try {
+                    token.check()
+                    LocalNetwork.routes(context, endpoint, ::log)
+                    if (StatFs(spool.absolutePath).availableBytes < DISK_RESERVE + 16 * MIB) throw SpoolSpaceException()
+                    val jobDir = File(spool, "job_${UUID.randomUUID()}")
+                    check(jobDir.mkdir()); dir = jobDir
+                    val pdf = File(jobDir, "input.pdf")
+                    status("Получение PDF…")
+                    source(pdf, token)
+                    token.check()
+                    if (pdf.length() !in 1..MAX_PDF_BYTES) throw PrintLimitException()
+                    log("pdf_spooled bytes=${pdf.length()}")
+                    val budget = minOf(MAX_HBP_BYTES, StatFs(spool.absolutePath).availableBytes - DISK_RESERVE)
+                    if (budget < 16 * MIB) throw SpoolSpaceException()
+                    val hbp = File(jobDir, "job.hbp")
+                    val size = RenderClient(context).prepare(pdf, File(jobDir, "page.mono"), hbp, token, options, budget, { page, total ->
+                        synchronized(lock) { this.page = page; this.pages = total }
+                        status("Подготовка стороны $page из $total…")
+                        main.post { progress(page, total) }
+                    }, ::log)
+                    token.check()
+                    log("prepared bytes=$size")
+                    synchronized(lock) { stage = "send" }
+                    status("Передача подготовленного задания…")
+                    main.post { progress(0, 0) }
+                    log("tcp_begin host=${endpoint.host} port=${endpoint.port}")
+                    var lastProgress = 0L
+                    val routes = LocalNetwork.routes(context, endpoint, ::log)
+                    val bytes = RawTcpTransport(totalTimeoutMs = 10 * 60_000, diagnostic = ::log).send(hbp, endpoint, token, routes) { count ->
+                        if (count - lastProgress >= MIB || count == size) {
+                            lastProgress = count; log("tcp_accepted_bytes=$count")
                         }
                     }
-                    else -> "Ошибка подготовки задания. Скопируйте технический лог."
+                    log("tcp_end accepted_bytes=$bytes")
+                    ReachabilityCache.markOnline(context, endpoint)
+                    synchronized(lock) { reachable = true }
+                    PrintOutcome(true, false, true, "Задание передано принтеру. RAW не подтверждает выход бумаги.")
+                } catch (e: TransmissionException) {
+                    val info = TcpDiagnostics.describe(e)
+                    log("tcp_failed phase=${e.phase} reason=${info.reason} category=${info.category} may_have_printed=${e.mayHavePrinted} accepted_bytes=${e.acceptedBytes} cancelled=${token.isCancelled}")
+                    if (info.detail.isNotEmpty()) log("tcp_error_detail=${info.detail}")
+                    val message = if (e.mayHavePrinted) "Передача прервана. Часть страниц могла напечататься. Проверьте принтер перед повтором."
+                        else if (token.isCancelled) "Отменено до передачи данных"
+                        else when (info.reason) {
+                            TcpFailureReason.REFUSED -> "Принтер отказал в подключении. Проверьте RAW-порт 9100."
+                            TcpFailureReason.PERMISSION -> "Android запретил сеть. Проверьте разрешения локальной сети и VPN."
+                            TcpFailureReason.UNREACHABLE -> "Нет маршрута к принтеру через Wi-Fi."
+                            TcpFailureReason.TIMEOUT -> "Принтер не ответил вовремя."
+                            TcpFailureReason.SOCKET_API -> "Ошибка сокета Android. Скопируйте технический лог."
+                            TcpFailureReason.UNKNOWN -> "Ошибка подключения. Скопируйте технический лог."
+                        }
+                    PrintOutcome(false, token.isCancelled, e.mayHavePrinted, message)
+                } catch (e: Exception) {
+                    log("job_failed category=${e.javaClass.simpleName} cancelled=${token.isCancelled}")
+                    val message = if (token.isCancelled || e is CancellationException || e is RenderFailure && e.errorCode == 4)
+                        "Подготовка отменена; данные не отправлены"
+                    else when (e) {
+                        is NoLocalNetworkException -> "Подключите телефон к Wi-Fi сети принтера"
+                        is SpoolSpaceException -> "Недостаточно места во внутреннем хранилище. Освободите место и повторите."
+                        is PrintLimitException -> "Превышен лимит: PDF 256 МБ, задание 500 страниц с копиями, поток 512 МБ."
+                        is RenderFailure -> {
+                            log("renderer_error=${e.errorCode}")
+                            when (e.errorCode) {
+                                2 -> "PDF защищён паролем или не поддерживается"
+                                3 -> "Некорректный PDF, размер страницы или диапазон страниц"
+                                6 -> "Превышен лимит задания или доступного места для подготовки"
+                                else -> "Ошибка подготовки PDF. Скопируйте технический лог."
+                            }
+                        }
+                        else -> "Ошибка подготовки задания. Скопируйте технический лог."
+                    }
+                    PrintOutcome(false, token.isCancelled || e is CancellationException || e is RenderFailure && e.errorCode == 4, false, message)
+                } finally {
+                    dir?.let { log("spool_cleaned=${runCatching { it.deleteRecursively() }.getOrDefault(false)}") }
                 }
-                PrintOutcome(false, token.isCancelled || e is CancellationException || e is RenderFailure && e.errorCode == 4, false, message)
-            } finally {
-                dir?.let { log("spool_cleaned=${runCatching { it.deleteRecursively() }.getOrDefault(false)}") }
-            }
-            status(result.message)
-            log("job_end sent=${result.sent} cancelled=${result.cancelled} may_have_printed=${result.mayHavePrinted}")
-            diagnostics.checkpoint()
-            synchronized(lock) { current = null; pending--; stage = "idle" }
-            publish()
-            main.post { finished(result) }
+                status(result.message)
+                log("job_end sent=${result.sent} cancelled=${result.cancelled} may_have_printed=${result.mayHavePrinted}")
+                diagnostics.checkpoint()
+                synchronized(lock) { current = null; pending--; stage = "idle" }
+                publish()
+                main.post { finished(result) }
+            } finally { keepAlive.close() }
         }
         return token
     }

@@ -61,7 +61,6 @@ def main():
                 or ancestor.returncode != 0 or not changed.issubset(allowed)):
             parser.error("Source differs from the frozen tag beyond publication tooling")
         head = tagged_source
-    endpoint = f"repos/{repo}/releases/tags/{args.tag}"
     # Distinguish a missing release from authentication/network failures.
     releases = json.loads(command("gh", "api", f"repos/{repo}/releases?per_page=100"))
     release = next((item for item in releases if item["tag_name"] == args.tag), None)
@@ -96,15 +95,12 @@ def main():
         checksums.write_text("".join(f"{sha256(path)}  {path.name}\n" for path in assets))
         assets.append(checksums)
         if release is None:
-            command("gh", "release", "create", args.tag, "--repo", repo, "--verify-tag",
-                    "--target", head, "--draft", "--prerelease", "--title",
-                    f"BrotherFastPrint {metadata['version_name']}", "--notes-file",
-                    str(ROOT / "docs/releases" / f"{args.tag}.md"))
-        if release is None:
-            releases = json.loads(command("gh", "api", f"repos/{repo}/releases?per_page=100"))
-            release = next((item for item in releases if item["tag_name"] == args.tag), None)
-            if release is None:
-                raise RuntimeError("Created draft is not visible in the authenticated release list")
+            # Use the POST response ID. A just-created draft can be absent from list/tag indexes.
+            notes = ROOT / "docs/releases" / f"{args.tag}.md"
+            release = json.loads(command("gh", "api", "--method", "POST", f"repos/{repo}/releases",
+                                         "-f", f"tag_name={args.tag}", "-f", f"target_commitish={head}",
+                                         "-f", f"name=BrotherFastPrint {metadata['version_name']}",
+                                         "-F", "draft=true", "-F", "prerelease=true", "-F", f"body=@{notes}"))
         # The tag endpoint may return 404 for drafts. Resolve the draft by its numeric ID.
         release = json.loads(command("gh", "api", f"repos/{repo}/releases/{release['id']}"))
         existing = {asset["name"] for asset in release["assets"]}
