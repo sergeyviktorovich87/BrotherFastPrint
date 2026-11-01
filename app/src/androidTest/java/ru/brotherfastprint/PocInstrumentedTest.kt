@@ -152,10 +152,40 @@ class PocInstrumentedTest {
         } finally { dir.deleteRecursively() }
     }
 
-    @Test fun testPdfStripeRenderingMatchesWholeBitmap() {
+    @Test fun testPdfStripeRenderingMatchesWholeBitmapWithinRounding() {
         val pdf = File.createTempFile("render-test-", ".pdf", context.cacheDir)
         try {
             makePdf(pdf)
+            // Android 16's clipped antialias rasterization can differ by one 8-bit
+            // channel unit (observed: 101/126300 pixels). Reject larger changes,
+            // global tone shifts, and all alpha changes; geometry is tested exactly below.
+            compareStripes(pdf, maxChannelDelta = 1, maxDifferentPixels = 300 * 421 / 200)
+        } finally { pdf.delete() }
+    }
+
+    @Test fun testPdfStripesPreserveOpaqueGeometryExactly() {
+        val pdf = File.createTempFile("geometry-test-", ".pdf", context.cacheDir)
+        try {
+            val doc = PdfDocument()
+            try {
+                val page = doc.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
+                val c = page.canvas
+                val paint = Paint().apply { color = Color.BLACK; isAntiAlias = false }
+                c.drawColor(Color.WHITE)
+                c.drawRect(20f, 50f, 220f, 350f, paint)
+                c.drawRect(300f, 20f, 302f, 820f, paint)
+                // One-pixel bars at every stripe boundary, including the final partial stripe.
+                for (i in 1..11) c.drawRect(240f, 74f * i, 500f, 74f * i + 2f, paint)
+                paint.color = Color.WHITE
+                c.drawRect(80f, 100f, 180f, 200f, paint)
+                doc.finishPage(page)
+                pdf.outputStream().use(doc::writeTo)
+            } finally { doc.close() }
+            compareStripes(pdf, maxChannelDelta = 0, maxDifferentPixels = 0)
+        } finally { pdf.delete() }
+    }
+
+    private fun compareStripes(pdf: File, maxChannelDelta: Int, maxDifferentPixels: Int) {
             PdfRenderer(ParcelFileDescriptor.open(pdf, ParcelFileDescriptor.MODE_READ_ONLY)).use { renderer ->
                 renderer.openPage(0).use { page ->
                     val w = 300; val h = 421; val rows = 37
@@ -173,24 +203,29 @@ class PocInstrumentedTest {
                             page.render(stripe, Rect(0,0,w,n), matrix, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
                             stripe.getPixels(actual,y*w,w,0,0,w,n)
                         }
-                        if (!expected.contentEquals(actual)) {
-                            val differing = expected.indices.filter { expected[it] != actual[it] }
-                            val maxDelta = differing.maxOf { i -> maxOf(
+                        val differing = expected.indices.filter { expected[it] != actual[it] }
+                        val alphaChanged = differing.any { Color.alpha(expected[it]) != Color.alpha(actual[it]) }
+                        val maxDelta = differing.maxOfOrNull { i -> maxOf(
                                 kotlin.math.abs(Color.red(expected[i]) - Color.red(actual[i])),
                                 kotlin.math.abs(Color.green(expected[i]) - Color.green(actual[i])),
-                                kotlin.math.abs(Color.blue(expected[i]) - Color.blue(actual[i]))) }
-                            val edgeDifferences = differing.count { i -> i / w % rows in setOf(0, rows - 1) }
+                                kotlin.math.abs(Color.blue(expected[i]) - Color.blue(actual[i]))) } ?: 0
+                        val invalid = alphaChanged || maxDelta > maxChannelDelta || differing.size > maxDifferentPixels
+                        // These are synthetic fixtures only. CI preserves the debug install
+                        // long enough to collect the PNGs from its private cache.
+                        if (maxChannelDelta > 0 || invalid) {
                             File(context.cacheDir, "ci-render-full.png").outputStream().use { full.compress(Bitmap.CompressFormat.PNG, 100, it) }
                             val assembled = Bitmap.createBitmap(actual, w, h, Bitmap.Config.ARGB_8888)
                             try {
                                 File(context.cacheDir, "ci-render-stripes.png").outputStream().use { assembled.compress(Bitmap.CompressFormat.PNG, 100, it) }
                             } finally { assembled.recycle() }
-                            fail("Stripe pixels differ=${differing.size}/${w*h} max_channel_delta=$maxDelta boundary_pixels=$edgeDifferences first=" +
+                        }
+                        if (invalid) {
+                            val edgeDifferences = differing.count { i -> i / w % rows in setOf(0, rows - 1) }
+                            fail("Stripe pixels differ=${differing.size}/${w*h} max_channel_delta=$maxDelta alpha_changed=$alphaChanged boundary_pixels=$edgeDifferences first=" +
                                 differing.take(6).joinToString { i -> "${i%w},${i/w}:${expected[i].toUInt().toString(16)}>${actual[i].toUInt().toString(16)}" })
                         }
                     } finally { full.recycle(); stripe.recycle() }
                 }
             }
-        } finally { pdf.delete() }
     }
 }

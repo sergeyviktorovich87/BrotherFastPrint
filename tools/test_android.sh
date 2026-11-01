@@ -68,4 +68,5 @@ export ANDROID_SERIAL=emulator-5554
 "$adb_bin" shell settings put global transition_animation_scale 0
 "$adb_bin" shell settings put global animator_duration_scale 0
 "$adb_bin" shell getprop ro.build.version.sdk
-./gradlew --no-daemon -PtestAbi=x86_64 :app:connectedDebugAndroidTest
+./gradlew --no-daemon -PtestAbi=x86_64 \
+    -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true :app:connectedDebugAndroidTest
