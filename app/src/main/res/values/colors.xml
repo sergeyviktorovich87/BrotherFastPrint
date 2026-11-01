@@ -1,0 +1,11 @@
+<resources>
+    <color name="canvas">#F4F7F7</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="ink">#192E32</color>
+    <color name="muted">#5E7377</color>
+    <color name="accent">#087A78</color>
+    <color name="accent_soft">#E2F1EE</color>
+    <color name="on_accent">#FFFFFF</color>
+    <color name="outline">#DFE8E7</color>
+    <bool name="light_system_bars">true</bool>
+</resources>

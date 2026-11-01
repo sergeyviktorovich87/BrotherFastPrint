@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+*.jar binary
+
+# Preserve pinned upstream bytes, including their original whitespace.
+third_party/brlaser/** -text -whitespace

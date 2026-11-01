@@ -1,0 +1,20 @@
+{
+  "repository": "https://github.com/pdewacht/brlaser",
+  "commit": "2a49e3287c70c254e7e3ac9dabe9d6a07218c3fa",
+  "git_blob_sha1": {
+    "src/job.cc": "9212e652125bb57af339a07dea9f4c39ac4bde2e",
+    "src/job.h": "bd7a83b34a22370c5e8f7e27e2c0931b80a848b1",
+    "src/line.cc": "4310b581721760a847451a52ad03ad88d48db325",
+    "src/line.h": "d9d87163fe91222b51f035d4a49884d5396ea03f",
+    "src/block.h": "1a6b6c6a2b95a3e91ef57b740ed9a5558b11e883",
+    "brlaser.drv.in": "99a3f8d617e57fef2d21b16028f01402d0067d99",
+    "README.md": "90cb2b7f6772f077fc47bea991fdbc3bfb041f31",
+    "test/lest.hpp": "efc9442bbccf1a909394b940490ed95977276f01",
+    "test/tempfile.h": "75feb6ce9b08772e84200c6515c8269c7108a202",
+    "test/test_line.cc": "9ab12c672707936754d7b41445c493e43b958b86",
+    "test/test_block.cc": "05642cf7be70117c100fb00c338582f9d3475b3f",
+    "test/test_job.cc": "5353564301c0e0ffafc72fb895e02f83a2eefb83",
+    "COPYING": "d159169d1050894d3ea3b98e1c965c4058208fe1",
+    "src/brdecode.cc": "bcd3ec7ea5d5d3df53db3fdf2ee7a62ae9b071a8"
+  }
+}

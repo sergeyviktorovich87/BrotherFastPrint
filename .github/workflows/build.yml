@@ -1,0 +1,85 @@
+name: Android CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'release/*']
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  build:
+    name: Build, native tests, JVM tests and lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up JDK 17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Install pinned Android SDK components
+        shell: bash
+        run: |
+          set +o pipefail
+          yes | sdkmanager --licenses > /dev/null
+          set -o pipefail
+          sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1'
+      - name: Verify wrapper and release tooling
+        run: |
+          echo '2db75c40782f5e8ba1fc278a5574bab070adccb2d21ca5a6e5ed840888448046  gradle/wrapper/gradle-wrapper.jar' | sha256sum --check
+          python3 -m py_compile tools/stage_release.py tools/publish_release.py
+      - name: Verify vendor sources and native HBP round trips
+        run: bash tools/test_native.sh
+      - name: Build Android APKs, run JVM tests and lint
+        run: ./gradlew --no-daemon :app:assembleDebug :app:testDebugUnitTest :app:assembleDebugAndroidTest :app:lintDebug
+      - name: Upload development APKs and reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: BrotherFastPrint-development-arm64-${{ github.run_number }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/androidTest/debug/*.apk
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/reports/lint-results-debug.*
+      - name: Explain build artifacts
+        if: ${{ always() }}
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          CI APKs use the runner's development signing key. They cannot update an installed official Preview APK. Device tests are compiled, not executed. The tested APK is distributed separately in Releases.
+          EOF
+
+  publish:
+    name: Publish the verified Preview APK
+    if: ${{ github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/v')) }}
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Publish the already tested APK and corresponding source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/publish_release.py "${GITHUB_REF_NAME#release/}"

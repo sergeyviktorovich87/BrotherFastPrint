@@ -1,0 +1,9 @@
+<resources>
+    <string name="diagnostics_failed">Не удалось подготовить отчёт. Закройте окно и повторите.</string>
+    <string name="diagnostics_busy">Отчёт уже готовится. Закройте окно и повторите через несколько секунд.</string>
+    <string name="printer_address">%1$s  :  %2$d   ›</string>
+    <string name="default_duplex">Двусторонняя печать\n%1$s   ›</string>
+    <string name="search_found">Нажмите на принтер, чтобы сохранить IP и RAW-порт.</string>
+    <string name="search_empty">Принтер не найден. Убедитесь, что телефон и принтер в одной сети. IP и порт можно указать вручную на главном экране.</string>
+    <string name="search_running">Ищем Brother в вашей Wi-Fi сети…</string>
+</resources>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <application
+        android:name=".FastPrintApp"
+        android:label="BrotherFastPrint Preview"
+        android:icon="@drawable/ic_printer"
+        android:theme="@style/AppTheme"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:usesCleartextTraffic="false"
+        android:supportsRtl="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <service
+            android:name=".service.BrotherPrintService"
+            android:label="BrotherFastPrint Preview"
+            android:permission="android.permission.BIND_PRINT_SERVICE"
+            android:stopWithTask="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.printservice.PrintService" />
+            </intent-filter>
+            <meta-data android:name="android.printservice" android:resource="@xml/print_service" />
+        </service>
+        <service
+            android:name=".render.RenderService"
+            android:process=":pdf_sandbox"
+            android:isolatedProcess="true"
+            android:exported="false" />
+    </application>
+</manifest>

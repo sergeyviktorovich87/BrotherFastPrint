@@ -1,0 +1,19 @@
+<resources>
+    <style name="BaseTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:textColorPrimary">@color/ink</item>
+        <item name="android:textColorSecondary">@color/muted</item>
+        <item name="android:colorBackground">@color/canvas</item>
+        <item name="android:windowLightStatusBar">@bool/light_system_bars</item>
+        <item name="android:statusBarColor">@color/canvas</item>
+        <item name="android:windowBackground">@color/canvas</item>
+        <item name="android:alertDialogTheme">@style/DialogTheme</item>
+    </style>
+    <style name="DialogTheme" parent="android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:colorBackground">@color/surface</item>
+        <item name="android:textColorPrimary">@color/ink</item>
+        <item name="android:textColorSecondary">@color/muted</item>
+    </style>
+</resources>

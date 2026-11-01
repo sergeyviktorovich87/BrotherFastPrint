@@ -1,0 +1,13 @@
+{
+  "tag": "v0.3.2-preview",
+  "version_name": "0.3.2-preview",
+  "version_code": 8,
+  "application_id": "ru.brotherfastprint.preview",
+  "apk_name": "BrotherFastPrint-0.3.2-preview-arm64.apk",
+  "apk_size_bytes": 1521784,
+  "apk_sha256": "fbb7d64caa2bd4f8acfe594bafae8e5ddf5202647281f1442f29bc83bf4accb3",
+  "signing_certificate_sha256": "f7f04543fc5d214e8c4c00534b9a86b2c90475520deb24e7d83e599e19dc1944",
+  "abi": "arm64-v8a",
+  "min_sdk": 26,
+  "target_sdk": 36
+}

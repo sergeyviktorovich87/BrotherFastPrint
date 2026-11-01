@@ -1,0 +1,17 @@
+name: Предложение / Feature request
+description: Изменение поведения или новая возможность
+title: "[Feature] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какую задачу нужно решить?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Предлагаемое поведение и оборудование
+      description: Для поддержки другой модели укажите точную модель и возможность проверки на реальном принтере.
+    validations:
+      required: true

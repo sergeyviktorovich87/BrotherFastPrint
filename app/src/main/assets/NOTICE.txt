@@ -1,0 +1,19 @@
+BrotherFastPrint
+
+This application and its original source are distributed under GPL-3.0-or-later.
+See licenses/GPL-3.0-or-later.txt. Corresponding source and build instructions
+are supplied in the accompanying BrotherFastPrint source archive alongside the APK.
+
+brlaser: Copyright 2013 Peter De Wachter, GPL-2.0-or-later.
+https://github.com/pdewacht/brlaser
+For this combined distribution, the GPLv3 option is used. The original brlaser
+license notices are preserved in the source archive.
+
+Kotlin standard library 2.1.21: JetBrains and contributors, Apache License 2.0.
+https://github.com/JetBrains/kotlin
+See licenses/Apache-2.0.txt.
+
+LLVM libc++ / libc++abi / compiler runtime from Android NDK r28c:
+LLVM contributors. See licenses/LLVM.txt.
+
+BrotherFastPrint is an independent project, not an official Brother product.

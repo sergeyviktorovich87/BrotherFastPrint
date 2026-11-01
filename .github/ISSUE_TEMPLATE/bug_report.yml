@@ -1,0 +1,39 @@
+name: Ошибка / Bug report
+description: Проблема установки, обнаружения или печати
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "Не прикладывайте сам документ, ключи или скриншоты с конфиденциальными данными. Проверьте технический лог перед отправкой."
+  - type: input
+    id: version
+    attributes:
+      label: Версия BrotherFastPrint
+      placeholder: 0.3.2-preview, APK из Releases
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Телефон и версия Android
+    validations:
+      required: true
+  - type: input
+    id: printer
+    attributes:
+      label: Модель принтера
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Шаги, ожидаемый и фактический результат
+      description: Из какого приложения печатаете? Открыт ли экран BrotherFastPrint? Включён ли VPN? Работает ли кнопка «Проверить»?
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Техническая диагностика
+      description: Необязательно. Удалите чувствительные сведения о своей сети; не прикладывайте содержимое документа.
+      render: text
