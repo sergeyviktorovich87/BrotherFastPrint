@@ -32,12 +32,11 @@ jobs:
           java-version: '17'
           cache: gradle
       - name: Install pinned Android SDK components
-        shell: bash
-        run: |
-          set +o pipefail
-          yes | sdkmanager --licenses > /dev/null
-          set -o pipefail
-          sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1'
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          cmdline-tools-version: '13114758'
+          log-accepted-android-sdk-licenses: 'false'
+          packages: 'platforms;android-36 build-tools;35.0.0 ndk;28.2.13676358 cmake;3.22.1'
       - name: Verify wrapper and release tooling
         run: |
           echo '2db75c40782f5e8ba1fc278a5574bab070adccb2d21ca5a6e5ed840888448046  gradle/wrapper/gradle-wrapper.jar' | sha256sum --check
