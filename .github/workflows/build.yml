@@ -61,13 +61,50 @@ jobs:
         if: ${{ always() }}
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
-          CI APKs use the runner's development signing key. They cannot update an installed official Preview APK. Device tests are compiled, not executed. The tested APK is distributed separately in Releases.
+          CI APKs use the runner's development signing key. They cannot update an installed official Preview APK. Instrumented tests run separately on an Android 16 x86_64 emulator; this does not validate Samsung behavior or physical printing. The tested APK is distributed separately in Releases.
           EOF
+
+  android-device:
+    name: Android 16 instrumented tests (x86_64 emulator)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up JDK 17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Install Android 16 emulator and pinned build tools
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          cmdline-tools-version: '13114758'
+          log-accepted-android-sdk-licenses: 'false'
+          packages: 'platforms;android-36 build-tools;35.0.0 ndk;28.2.13676358 cmake;3.22.1 platform-tools emulator system-images;android-36;google_apis;x86_64'
+      - name: Enable runner KVM access
+        run: sudo chmod a+rw /dev/kvm
+      - name: Run instrumented tests on Android 16
+        run: bash tools/test_android.sh
+      - name: Upload emulator test reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: BrotherFastPrint-Android16-tests-${{ github.run_number }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+            build/emulator/
 
   publish:
     name: Publish the verified Preview APK
     if: ${{ github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/v')) }}
-    needs: build
+    needs: [build, android-device]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
