@@ -173,7 +173,21 @@ class PocInstrumentedTest {
                             page.render(stripe, Rect(0,0,w,n), matrix, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
                             stripe.getPixels(actual,y*w,w,0,0,w,n)
                         }
-                        assertTrue(expected.contentEquals(actual))
+                        if (!expected.contentEquals(actual)) {
+                            val differing = expected.indices.filter { expected[it] != actual[it] }
+                            val maxDelta = differing.maxOf { i -> maxOf(
+                                kotlin.math.abs(Color.red(expected[i]) - Color.red(actual[i])),
+                                kotlin.math.abs(Color.green(expected[i]) - Color.green(actual[i])),
+                                kotlin.math.abs(Color.blue(expected[i]) - Color.blue(actual[i]))) }
+                            val edgeDifferences = differing.count { i -> i / w % rows in setOf(0, rows - 1) }
+                            File(context.cacheDir, "ci-render-full.png").outputStream().use { full.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                            val assembled = Bitmap.createBitmap(actual, w, h, Bitmap.Config.ARGB_8888)
+                            try {
+                                File(context.cacheDir, "ci-render-stripes.png").outputStream().use { assembled.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                            } finally { assembled.recycle() }
+                            fail("Stripe pixels differ=${differing.size}/${w*h} max_channel_delta=$maxDelta boundary_pixels=$edgeDifferences first=" +
+                                differing.take(6).joinToString { i -> "${i%w},${i/w}:${expected[i].toUInt().toString(16)}>${actual[i].toUInt().toString(16)}" })
+                        }
                     } finally { full.recycle(); stripe.recycle() }
                 }
             }

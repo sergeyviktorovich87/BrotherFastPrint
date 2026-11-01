@@ -101,7 +101,10 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
-            build/emulator/
+            build/emulator/emulator.log
+            build/emulator/logcat.txt
+            build/emulator/avds.txt
+            build/emulator/ci-render-*.png
 
   publish:
     name: Publish the verified Preview APK
@@ -111,6 +114,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      actions: write # Delete only the oversized, explicitly identified CI bootstrap artifact below.
     steps:
       - name: Check out the tagged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -121,3 +125,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 tools/publish_release.py "${GITHUB_REF_NAME#release/}"
+      - name: Remove the temporary emulator disk archive from bootstrap run 18
+        if: ${{ github.ref_name == 'release/v0.3.5-preview' || github.ref_name == 'v0.3.5-preview' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          repo = os.environ['GITHUB_REPOSITORY']
+          endpoint = f'repos/{repo}/actions/runs/41359319489/artifacts'
+          artifacts = json.loads(subprocess.check_output(['gh', 'api', endpoint]))['artifacts']
+          for artifact in artifacts:
+              if (artifact['id'] == 13103819358
+                      and artifact['name'] == 'BrotherFastPrint-Android16-tests-18-1'
+                      and artifact['size_in_bytes'] == 1293954221):
+                  subprocess.check_call(['gh', 'api', '--method', 'DELETE',
+                                         f"repos/{repo}/actions/artifacts/{artifact['id']}"])
+                  print('Removed temporary AVD archive; workflow logs remain available.')
+          PY

@@ -22,7 +22,6 @@ object PrintKeepAlive {
     private val main = ServiceDispatcher.mainHandler()
     private val next = AtomicLong()
     private val owners = mutableMapOf<Long, String>()
-    private var starting = false
     private var running: PrintKeepAliveService? = null
 
     fun acquire(context: Context, role: String): AutoCloseable {
@@ -33,23 +32,22 @@ object PrintKeepAlive {
         main.post {
             if (!closed.get()) {
                 owners[id] = role
-                if (running == null && !starting) {
-                    starting = true
-                    try {
-                        app.startForegroundService(Intent(app, PrintKeepAliveService::class.java))
-                        log(app, "keepalive_requested role=$role owners=${owners.size}")
-                    } catch (e: RuntimeException) {
-                        starting = false
-                        log(app, "keepalive_start_denied category=${e.javaClass.simpleName}")
-                    }
-                } else running?.refresh()
+                // A cached Service can already have a stopService/onDestroy pending.
+                // Reassert the started state for every new owner, even while that old
+                // instance still exists. Android serializes destruction/recreation.
+                try {
+                    app.startForegroundService(Intent(app, PrintKeepAliveService::class.java))
+                    log(app, "keepalive_requested role=$role owners=${owners.size}")
+                } catch (e: RuntimeException) {
+                    log(app, "keepalive_start_denied role=$role category=${e.javaClass.simpleName}")
+                }
+                running?.refresh()
             }
         }
         return AutoCloseable {
             if (closed.compareAndSet(false, true)) main.post {
                 if (owners.remove(id) != null) {
                     if (owners.isEmpty()) {
-                        starting = false
                         try { app.stopService(Intent(app, PrintKeepAliveService::class.java)) }
                         catch (e: RuntimeException) { log(app, "keepalive_stop_error category=${e.javaClass.simpleName}") }
                     } else running?.refresh()
@@ -58,12 +56,12 @@ object PrintKeepAlive {
         }
     }
 
-    internal fun attach(service: PrintKeepAliveService) { starting = false; running = service }
+    internal fun attach(service: PrintKeepAliveService) { running = service }
     internal fun detach(service: PrintKeepAliveService) {
         if (running === service) running = null
-        starting = false
     }
     internal fun wanted() = owners.isNotEmpty()
+    internal fun ownerCount() = owners.size
     internal fun hasJobs() = "job" in owners.values
     internal fun log(context: Context, message: String) {
         (context.applicationContext as FastPrintApp).diagnostics.record(message)
@@ -72,6 +70,7 @@ object PrintKeepAlive {
 
 /** Separate from PrintService: only Android starts/stops the framework print component. */
 class PrintKeepAliveService : Service() {
+    private val instance = nextInstance.incrementAndGet()
     private val main = ServiceDispatcher.mainHandler()
     private var promoted = false
     private var wakeReported = false
@@ -80,7 +79,7 @@ class PrintKeepAliveService : Service() {
         override fun run() {
             if (!promoted || !PrintKeepAlive.wanted()) { stopSelf(); return }
             try {
-                // Each acquisition expires independently if the process stops dispatching.
+                // Renew a timed request only while a session/job owns this service.
                 wake?.acquire(60_000L)
                 if (!wakeReported) {
                     wakeReported = true
@@ -103,7 +102,7 @@ class PrintKeepAliveService : Service() {
             PrintKeepAlive.attach(this)
             wake = getSystemService(PowerManager::class.java).newWakeLock(
                 PowerManager.PARTIAL_WAKE_LOCK, "BrotherFastPrint:PrintSession").apply { setReferenceCounted(false) }
-            PrintKeepAlive.log(this, "keepalive_foreground_started type=connectedDevice")
+            PrintKeepAlive.log(this, "keepalive_foreground_started instance=$instance type=connectedDevice")
             main.post(pulse)
         } catch (e: RuntimeException) {
             PrintKeepAlive.log(this, "keepalive_promotion_failed category=${e.javaClass.simpleName}")
@@ -131,6 +130,7 @@ class PrintKeepAliveService : Service() {
         }
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        PrintKeepAlive.log(this, "keepalive_start_command instance=$instance start_id=$startId owners=${PrintKeepAlive.ownerCount()}")
         if (!promoted || !PrintKeepAlive.wanted()) stopSelfResult(startId) else refresh()
         return START_NOT_STICKY // No boot start, job redelivery or background resurrection.
     }
@@ -144,10 +144,11 @@ class PrintKeepAliveService : Service() {
         if (promoted) stopForeground(STOP_FOREGROUND_REMOVE)
         promoted = false
         PrintKeepAlive.detach(this)
-        PrintKeepAlive.log(this, "keepalive_stopped wake_released=$released")
+        PrintKeepAlive.log(this, "keepalive_stopped instance=$instance wake_released=$released")
         super.onDestroy()
     }
     companion object {
+        private val nextInstance = AtomicLong()
         private const val CHANNEL = "system_print"
         private const val NOTIFICATION = 9100
     }

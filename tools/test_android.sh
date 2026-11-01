@@ -7,7 +7,8 @@ cd "$project_dir"
 test -r /dev/kvm && test -w /dev/kvm
 report_dir="$project_dir/build/emulator"
 mkdir -p "$report_dir"
-export ANDROID_USER_HOME="$report_dir/android-user"
+export ANDROID_USER_HOME="${RUNNER_TEMP:-$project_dir/build}/brotherfastprint-android-user"
+export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
 export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
 mkdir -p "$ANDROID_AVD_HOME"
 adb_bin="$ANDROID_HOME/platform-tools/adb"
@@ -28,6 +29,11 @@ PY
     >"$report_dir/emulator.log" 2>&1 &
 emulator_pid=$!
 cleanup() {
+    for sample in full stripes; do
+        if timeout 5 "$adb_bin" -s emulator-5554 shell run-as ru.brotherfastprint.preview test -s "cache/ci-render-$sample.png" >/dev/null 2>&1; then
+            timeout 8 "$adb_bin" -s emulator-5554 exec-out run-as ru.brotherfastprint.preview cat "cache/ci-render-$sample.png" >"$report_dir/ci-render-$sample.png" 2>/dev/null || true
+        fi
+    done
     timeout 8 "$adb_bin" -s emulator-5554 logcat -d -t 10000 >"$report_dir/logcat.txt" 2>&1 || true
     timeout 5 "$adb_bin" -s emulator-5554 emu kill >/dev/null 2>&1 || true
     kill "$emulator_pid" 2>/dev/null || true
