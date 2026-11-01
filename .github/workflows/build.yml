@@ -87,6 +87,8 @@ jobs:
           packages: 'platforms;android-36 build-tools;35.0.0 ndk;28.2.13676358 cmake;3.22.1 platform-tools emulator system-images;android-36;google_apis;x86_64'
       - name: Enable runner KVM access
         run: sudo chmod a+rw /dev/kvm
+      - name: Build emulator APKs before starting the virtual device
+        run: ./gradlew --no-daemon -PtestAbi=x86_64 :app:assembleDebug :app:assembleDebugAndroidTest
       - name: Run instrumented tests on Android 16
         run: bash tools/test_android.sh
       - name: Upload emulator test reports

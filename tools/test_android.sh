@@ -14,7 +14,7 @@ avdmanager create avd --force --name "$avd_name" \
     --package 'system-images;android-36;google_apis;x86_64' --device pixel_2 <<<'no'
 "$adb_bin" start-server
 "$emulator_bin" -avd "$avd_name" -port 5554 -no-window -no-audio -no-boot-anim \
-    -no-snapshot -gpu swiftshader -memory 2048 -cores 2 \
+    -no-snapshot -gpu swiftshader -memory 3072 -cores 2 \
     >"$report_dir/emulator.log" 2>&1 &
 emulator_pid=$!
 cleanup() {
@@ -25,7 +25,8 @@ cleanup() {
 }
 trap cleanup EXIT
 ready=false
-for ((attempt=0; attempt<150; attempt++)); do
+boot_deadline=$((SECONDS + 240))
+while (( SECONDS < boot_deadline )); do
     if ! kill -0 "$emulator_pid" 2>/dev/null; then
         tail -n 80 "$report_dir/emulator.log"
         exit 1
