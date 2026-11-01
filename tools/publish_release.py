@@ -32,6 +32,7 @@ def main():
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
         parser.error("Run this publisher in the trusted tag workflow")
     head = command("git", "rev-parse", "HEAD")
+    workflow_head = head
     metadata_path = ROOT / "docs/releases" / f"{args.tag}.json"
     metadata = json.loads(metadata_path.read_text())
     name = metadata["apk_name"]
@@ -49,8 +50,17 @@ def main():
         command("gh", "api", "--method", "POST", f"repos/{repo}/git/refs",
                 "-f", f"ref={tag_ref}", "-f", f"sha={tag['sha']}")
     command("git", "fetch", "--no-tags", "origin", f"{tag_ref}:{tag_ref}")
-    if head != command("git", "rev-parse", f"{tag_ref}^{{commit}}"):
-        parser.error("Checked-out source does not match the release tag")
+    tagged_source = command("git", "rev-parse", f"{tag_ref}^{{commit}}")
+    if head != tagged_source:
+        # Resume a draft after fixing publication tooling without ever moving its tag.
+        allowed = {"tools/publish_release.py", ".github/workflows/build.yml", "docs/RELEASING.md"}
+        changed = set(command("git", "diff", "--name-only", tagged_source, head).splitlines())
+        ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", tagged_source, head],
+                                  cwd=ROOT, check=False)
+        if (os.environ.get("GITHUB_REF") != f"refs/heads/release/{args.tag}"
+                or ancestor.returncode != 0 or not changed.issubset(allowed)):
+            parser.error("Source differs from the frozen tag beyond publication tooling")
+        head = tagged_source
     endpoint = f"repos/{repo}/releases/tags/{args.tag}"
     # Distinguish a missing release from authentication/network failures.
     releases = json.loads(command("gh", "api", f"repos/{repo}/releases?per_page=100"))
@@ -90,7 +100,13 @@ def main():
                     "--target", head, "--draft", "--prerelease", "--title",
                     f"BrotherFastPrint {metadata['version_name']}", "--notes-file",
                     str(ROOT / "docs/releases" / f"{args.tag}.md"))
-        release = json.loads(command("gh", "api", endpoint))
+        if release is None:
+            releases = json.loads(command("gh", "api", f"repos/{repo}/releases?per_page=100"))
+            release = next((item for item in releases if item["tag_name"] == args.tag), None)
+            if release is None:
+                raise RuntimeError("Created draft is not visible in the authenticated release list")
+        # The tag endpoint may return 404 for drafts. Resolve the draft by its numeric ID.
+        release = json.loads(command("gh", "api", f"repos/{repo}/releases/{release['id']}"))
         existing = {asset["name"] for asset in release["assets"]}
         for asset in assets:
             if asset.name not in existing:
@@ -116,7 +132,7 @@ def main():
             print("::warning::Release published; temporary asset branch needs manual cleanup")
         release_ref = f"refs/heads/release/{args.tag}"
         if os.environ.get("GITHUB_REF") == release_ref:
-            result = subprocess.run(["git", "push", f"--force-with-lease={release_ref}:{head}",
+            result = subprocess.run(["git", "push", f"--force-with-lease={release_ref}:{workflow_head}",
                                      "origin", f":{release_ref}"], cwd=ROOT, check=False)
             if result.returncode:
                 print("::warning::Release published; temporary release branch needs manual cleanup")
