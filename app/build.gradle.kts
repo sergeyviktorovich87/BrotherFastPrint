@@ -13,8 +13,8 @@ android {
         applicationId = "ru.brotherfastprint.preview"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.3.2-preview"
+        versionCode = 11
+        versionName = "0.3.5-preview"
         ndk { abiFilters += (providers.gradleProperty("testAbi").orNull ?: "arm64-v8a") }
         externalNativeBuild {
             cmake { arguments += "-DANDROID_STL=c++_static" }

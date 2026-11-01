@@ -43,8 +43,9 @@ class PocController(private val context: Context, private val engine: PrintEngin
     fun printAll(endpoint: Endpoint) {
         if (snapshot().busy || !hasSource()) return
         val uri = selected; val pages = samplePages
-        engine.submit(endpoint, PrintOptions(tonerSave = PrinterConfig.tonerSave(context), duplex = PrinterConfig.duplex(context)), "direct", { output, token ->
-            if (pages > 0) CalibrationPdf.create(output, pages, token)
+        val profile = PrinterConfig.rasterProfile(context)
+        engine.submit(endpoint, PrintOptions(tonerSave = PrinterConfig.tonerSave(context), duplex = PrinterConfig.duplex(context), rasterProfile = profile), "direct", { output, token ->
+            if (pages > 0) CalibrationPdf.create(output, pages, token, profile)
             else {
                 val input = context.contentResolver.openInputStream(uri!!) ?: throw IOException("No PDF input")
                 PrintEngine.copyPdf(input, output, token)

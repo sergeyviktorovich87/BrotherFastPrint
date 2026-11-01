@@ -2,7 +2,8 @@ package ru.brotherfastprint.core
 
 class PrintLimitException : IllegalArgumentException("Print job exceeds configured limits")
 
-data class PrintOptions(val copies: Int = 1, val ranges: IntArray? = null, val tonerSave: Boolean = false, val duplex: Int = Duplex.NONE)
+data class PrintOptions(val copies: Int = 1, val ranges: IntArray? = null, val tonerSave: Boolean = false,
+                        val duplex: Int = Duplex.NONE, val rasterProfile: Int = RasterProfile.DOCUMENTS)
 
 /** Ranges use PDF-file indices. Android PrintSpooler already remaps document indices. */
 object PagePlan {
@@ -13,6 +14,7 @@ object PagePlan {
     fun create(pageCount: Int, options: PrintOptions): IntArray {
         require(pageCount > 0)
         Duplex.requireValid(options.duplex)
+        RasterProfile.requireValid(options.rasterProfile)
         if (options.copies !in 1..MAX_COPIES) throw PrintLimitException()
         val ranges = options.ranges ?: intArrayOf(0, Int.MAX_VALUE)
         require(ranges.isNotEmpty() && ranges.size % 2 == 0 && ranges.size <= 1000)

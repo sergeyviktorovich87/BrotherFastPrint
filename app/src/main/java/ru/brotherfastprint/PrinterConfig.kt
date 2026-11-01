@@ -3,6 +3,7 @@ package ru.brotherfastprint
 import android.content.Context
 import ru.brotherfastprint.core.Endpoint
 import ru.brotherfastprint.core.Duplex
+import ru.brotherfastprint.core.RasterProfile
 
 object PrinterConfig {
     const val NAME = "Brother HL-L2340DWR"
@@ -18,6 +19,12 @@ object PrinterConfig {
     }
     fun saveToner(context: Context, value: Boolean) {
         context.getSharedPreferences("printer", Context.MODE_PRIVATE).edit().putBoolean("toner_save", value).apply()
+    }
+    fun rasterProfile(context: Context): Int = context.getSharedPreferences("printer", Context.MODE_PRIVATE)
+        .getInt("raster_profile", RasterProfile.DOCUMENTS).takeIf { it in RasterProfile.modes } ?: RasterProfile.DOCUMENTS
+    fun saveRasterProfile(context: Context, mode: Int) {
+        RasterProfile.requireValid(mode)
+        context.getSharedPreferences("printer", Context.MODE_PRIVATE).edit().putInt("raster_profile", mode).apply()
     }
     fun tonerSave(context: Context) = context.getSharedPreferences("printer", Context.MODE_PRIVATE).getBoolean("toner_save", false)
     fun save(context: Context, endpoint: Endpoint, tonerSave: Boolean) {

@@ -17,6 +17,7 @@ import ru.brotherfastprint.core.PagePlan
 import ru.brotherfastprint.core.PrintLimitException
 import ru.brotherfastprint.core.PrintOptions
 import ru.brotherfastprint.core.Duplex
+import ru.brotherfastprint.core.RasterProfile
 import java.io.IOException
 import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -49,8 +50,9 @@ class RenderService : Service() {
                     val renderer = try { PdfRenderer(owned) } catch (e: Exception) { owned.close(); throw e }
                     renderer.use {
                         event("pdf_open", renderer.pageCount.toLong())
-                        val settings = PrintOptions(options.getInt("copies", 1), options.getIntArray("ranges"), options.getBoolean("toner_save"), options.getInt("duplex", Duplex.NONE))
+                        val settings = PrintOptions(options.getInt("copies", 1), options.getIntArray("ranges"), options.getBoolean("toner_save"), options.getInt("duplex", Duplex.NONE), options.getInt("raster_profile", RasterProfile.DOCUMENTS))
                         val plan = PagePlan.create(renderer.pageCount, settings)
+                        event("raster_profile", settings.rasterProfile.toLong())
                         val maxBytes = options.getLong("max_hbp_bytes", 16L * 1024 * 1024)
                         require(maxBytes in 1..(512L * 1024 * 1024))
                         event("page_count", plan.size.toLong())
@@ -70,6 +72,7 @@ class RenderService : Service() {
                                     Os.ftruncate(raster.fileDescriptor, ((width + 7) / 8).toLong() * height)
                                     event("blank_back", 1)
                                 } else renderer.openPage(pdfIndex).use { page ->
+                                    event("pdf_width_pt", page.width.toLong()); event("pdf_height_pt", page.height.toLong())
                                     var renderMs = 0L; var monoMs = 0L
                                     event("render_begin", (ordinal + 1).toLong())
                                     for (y in 0 until height step stripeRows) {
@@ -82,7 +85,7 @@ class RenderService : Service() {
                                         renderMs += SystemClock.elapsedRealtime()-t0
                                         checkCancelled()
                                         val t1 = SystemClock.elapsedRealtime()
-                                        NativeBridge.appendMono(bitmap, rows, y, raster.fd)
+                                        NativeBridge.appendMono(bitmap, rows, y, raster.fd, settings.rasterProfile)
                                         monoMs += SystemClock.elapsedRealtime()-t1
                                     }
                                     event("render_end_ms", renderMs); event("mono_end_ms", monoMs)

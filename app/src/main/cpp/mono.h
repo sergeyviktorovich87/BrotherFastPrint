@@ -4,7 +4,9 @@
 #include <cstdint>
 
 namespace fastprint {
-// RGBA -> MSB-first, 1 = black, 0 = white. Coordinates keep Bayer phase across strips.
+enum class RasterProfile { Documents = 0, Photo = 1 };
+// RGBA -> MSB-first, 1 = black, 0 = white. Screen phase is continuous across strips.
 void pack_rgba(const uint8_t *rgba, int width, int rows, size_t stride,
-               int absolute_y, bool premultiplied, uint8_t *mono);
+               int absolute_y, bool premultiplied, uint8_t *mono,
+               RasterProfile profile = RasterProfile::Documents);
 }

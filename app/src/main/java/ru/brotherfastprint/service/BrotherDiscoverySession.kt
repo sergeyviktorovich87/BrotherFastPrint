@@ -41,11 +41,12 @@ class BrotherDiscoverySession(private val service: BrotherPrintService, private 
     private var defaultRegistered = false
     private var lanRegistered = false
     private val session = nextSession.incrementAndGet()
-    private var probeDue = 0L
+    private var probeDeadline: DispatchDeadline? = null
     private var lastPublished: PrinterInfo? = null
     private val poll = Runnable {
-        val late = SystemClock.elapsedRealtime() - probeDue
-        if (late > 1000) engine.logService("discovery_dispatch_late session=$session late_ms=$late")
+        val timing = probeDeadline?.measure(SystemClock.elapsedRealtime(), SystemClock.uptimeMillis())
+        if (timing != null && timing.elapsedLateMs > 1000)
+            engine.logService("discovery_dispatch_late session=$session late_ms=${timing.elapsedLateMs} awake_late_ms=${timing.awakeLateMs} sleep_ms=${timing.sleepMs}")
         probe()
     }
 
@@ -161,7 +162,7 @@ class BrotherDiscoverySession(private val service: BrotherPrintService, private 
     private fun scheduleProbe(delay: Long) {
         main.removeCallbacks(poll)
         if (!closed && service.isSystemConnected && (discovering || tracking)) {
-            probeDue = SystemClock.elapsedRealtime() + delay
+            probeDeadline = DispatchDeadline(SystemClock.elapsedRealtime(), SystemClock.uptimeMillis(), delay)
             main.postDelayed(poll, delay)
         }
     }

@@ -17,8 +17,10 @@ import ru.brotherfastprint.core.PagePlan
 import ru.brotherfastprint.core.PrintOptions
 import ru.brotherfastprint.core.Duplex
 import ru.brotherfastprint.core.PrintRecovery
+import ru.brotherfastprint.core.DispatchDeadline
 import ru.brotherfastprint.printing.PrintEngine
 import ru.brotherfastprint.printing.ServiceDispatcher
+import ru.brotherfastprint.printing.PrintKeepAlive
 import java.io.IOException
 import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletableFuture
@@ -36,7 +38,8 @@ class BrotherPrintService : PrintService() {
     private var discovery: BrotherDiscoverySession? = null
     private val instance = nextInstance.incrementAndGet()
     private var reconnectScan = true
-    private var scanDue = 0L
+    private var scanDeadline: DispatchDeadline? = null
+    private var keepAlive: AutoCloseable? = null
     private var lastQueueCount = -1
     private val queuePoll = Runnable { scanQueue() }
 
@@ -57,12 +60,14 @@ class BrotherPrintService : PrintService() {
 
     override fun onConnected() {
         connected = true
+        keepAlive?.close(); keepAlive = PrintKeepAlive.acquire(this, "system_session")
         engine.logService("service_connected instance=$instance app_version=${BuildConfig.VERSION_NAME} pid=${android.os.Process.myPid()}")
         discovery?.systemConnected()
         val power = getSystemService(android.os.PowerManager::class.java)
         val restricted = if (android.os.Build.VERSION.SDK_INT >= 28)
             getSystemService(android.app.ActivityManager::class.java).isBackgroundRestricted else false
         engine.logService("service_power background_restricted=$restricted battery_optimization_ignored=${power.isIgnoringBatteryOptimizations(packageName)}")
+        logPowerSnapshot("service_connected")
         reconnectScan = true; lastQueueCount = -1
         // Let the framework attach/publish the initial discovery snapshot before a spooler RPC.
         scheduleQueueScan(250)
@@ -71,13 +76,14 @@ class BrotherPrintService : PrintService() {
     override fun onPrintJobQueued(printJob: PrintJob) {
         // Log callback entry before Binder status/data calls and before the engine's own queue.
         engine.logService("system_job_callback instance=$instance connected=$connected")
+        logPowerSnapshot("job_callback")
         acceptJob(printJob, "callback")
     }
 
     private fun scheduleQueueScan(delay: Long) {
         main.removeCallbacks(queuePoll)
         if (connected) {
-            scanDue = SystemClock.elapsedRealtime() + delay
+            scanDeadline = DispatchDeadline(SystemClock.elapsedRealtime(), SystemClock.uptimeMillis(), delay)
             main.postDelayed(queuePoll, delay)
         }
     }
@@ -87,6 +93,8 @@ class BrotherPrintService : PrintService() {
     private fun scanQueue() {
         if (!connected) return
         val begin = SystemClock.elapsedRealtime()
+        val beginUptime = SystemClock.uptimeMillis()
+        val timing = scanDeadline?.measure(begin, beginUptime)
         val reconnect = reconnectScan
         var activeCount = 0
         try {
@@ -94,8 +102,8 @@ class BrotherPrintService : PrintService() {
             val active = activePrintJobs
             activeCount = active.size
             reconnectScan = false
-            if (active.size != lastQueueCount || reconnect || begin - scanDue > 1000) {
-                engine.logService("system_queue_scan instance=$instance count=${active.size} reconnect=$reconnect dispatch_late_ms=${(begin - scanDue).coerceAtLeast(0)}")
+            if (active.size != lastQueueCount || reconnect || (timing?.elapsedLateMs ?: 0) > 1000) {
+                engine.logService("system_queue_scan instance=$instance count=${active.size} reconnect=$reconnect dispatch_late_ms=${timing?.elapsedLateMs ?: 0} awake_late_ms=${timing?.awakeLateMs ?: 0} sleep_ms=${timing?.sleepMs ?: 0}")
                 lastQueueCount = active.size
             }
             for (job in active) {
@@ -117,7 +125,7 @@ class BrotherPrintService : PrintService() {
             engine.logService("system_queue_scan_error instance=$instance category=${e.javaClass.simpleName}")
         } finally {
             val duration = SystemClock.elapsedRealtime() - begin
-            if (duration > 1000) engine.logService("system_queue_scan_slow instance=$instance duration_ms=$duration")
+            if (duration > 1000) engine.logService("system_queue_scan_slow instance=$instance duration_ms=$duration awake_ms=${SystemClock.uptimeMillis() - beginUptime}")
             // Follow actual system discovery/jobs, with one reconnect grace check; do not poll idle forever.
             if (jobs.isNotEmpty() || activeCount > 0 || discovery?.hasActiveRequests == true || reconnect)
                 scheduleQueueScan(5000)
@@ -130,6 +138,7 @@ class BrotherPrintService : PrintService() {
         if (info.state != PrintJobInfo.STATE_QUEUED) return
         // Creation includes time spent in the print preview; it is NOT an Android queue timestamp.
         engine.logService("system_job_accept instance=$instance via=$source document_age_ms=${(System.currentTimeMillis() - info.creationTime).coerceAtLeast(0)}")
+        logPowerSnapshot("job_accept")
         if (info.printerId != generatePrinterId(PrinterConfig.LOCAL_ID)) {
             printJob.fail("Неизвестный принтер. Выберите Brother HL-L2340DWR."); return
         }
@@ -149,7 +158,7 @@ class BrotherPrintService : PrintService() {
             printJob.fail("Сохраните корректный IP и RAW-порт в BrotherFastPrint."); return
         }
         val ranges = info.pages?.flatMap { listOf(it.start, it.end) }?.toIntArray()
-        val options = PrintOptions(info.copies, ranges, PrinterConfig.tonerSave(this), attrs.duplexMode.takeIf { it != 0 } ?: PrinterConfig.duplex(this))
+        val options = PrintOptions(info.copies, ranges, PrinterConfig.tonerSave(this), attrs.duplexMode.takeIf { it != 0 } ?: PrinterConfig.duplex(this), PrinterConfig.rasterProfile(this))
         if (!printJob.start()) {
             engine.logService("system_job_start_rejected instance=$instance"); return
         }
@@ -188,9 +197,11 @@ class BrotherPrintService : PrintService() {
         val remove = token.onCancel { request.completeExceptionally(CancellationException()) }
         main.post {
             try {
+                engine.logService("system_document_request_begin instance=$instance")
                 if (token.isCancelled || !connected || !job.isStarted) throw CancellationException()
                 val fd = job.document.data ?: throw IOException("Print spool unavailable")
                 if (!request.complete(fd)) fd.close()
+                engine.logService("system_document_request_end instance=$instance")
             } catch (e: Exception) { request.completeExceptionally(e) }
         }
         try { return request.get(15, TimeUnit.SECONDS) }
@@ -210,6 +221,7 @@ class BrotherPrintService : PrintService() {
 
     override fun onDisconnected() {
         connected = false
+        keepAlive?.close(); keepAlive = null
         main.removeCallbacks(queuePoll)
         discovery?.systemDisconnected()
         engine.logService("service_disconnected instance=$instance active_jobs=${jobs.size}")
@@ -217,6 +229,7 @@ class BrotherPrintService : PrintService() {
     }
     override fun onDestroy() {
         connected = false
+        keepAlive?.close(); keepAlive = null
         main.removeCallbacks(queuePoll)
         discovery?.systemDisconnected()
         engine.logService("service_destroyed instance=$instance active_jobs=${jobs.size}")
@@ -228,5 +241,12 @@ class BrotherPrintService : PrintService() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         engine.logService("launcher_task_removed service_owned_by_android=true")
         super.onTaskRemoved(rootIntent)
+    }
+
+    private fun logPowerSnapshot(reason: String) {
+        val state = android.app.ActivityManager.RunningAppProcessInfo()
+        android.app.ActivityManager.getMyMemoryState(state)
+        val power = getSystemService(android.os.PowerManager::class.java)
+        engine.logService("process_power reason=$reason importance=${state.importance} interactive=${power.isInteractive} idle=${power.isDeviceIdleMode} power_save=${power.isPowerSaveMode} elapsed_ms=${SystemClock.elapsedRealtime()} uptime_ms=${SystemClock.uptimeMillis()}")
     }
 }
