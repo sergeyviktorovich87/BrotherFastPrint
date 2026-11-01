@@ -18,6 +18,7 @@ import android.view.WindowInsets
 import android.widget.*
 import ru.brotherfastprint.core.Duplex
 import ru.brotherfastprint.core.Endpoint
+import ru.brotherfastprint.core.RasterProfile
 import ru.brotherfastprint.discovery.PrinterFinder
 import ru.brotherfastprint.printing.EngineState
 
@@ -30,6 +31,7 @@ class MainActivity : Activity() {
     private lateinit var address: TextView
     private lateinit var result: TextView
     private lateinit var duplex: TextView
+    private lateinit var rasterProfile: TextView
     private lateinit var toner: Switch
     private lateinit var jobCard: LinearLayout
     private lateinit var jobStatus: TextView
@@ -147,6 +149,14 @@ class MainActivity : Activity() {
         }
         settings.addView(duplex); idleControls += duplex
         divider(settings)
+        rasterProfile = text("", 16f).apply {
+            minHeight = dp(62); gravity = Gravity.CENTER_VERTICAL
+            isClickable = true; isFocusable = true
+            setBackgroundResource(android.R.drawable.list_selector_background)
+            setOnClickListener { chooseRasterProfile() }
+        }
+        settings.addView(rasterProfile); idleControls += rasterProfile
+        divider(settings)
         @Suppress("UseSwitchCompatOrMaterialCode")
         toner = Switch(this).apply {
             text = "Экономия тонера"; textSize = 16f; minHeight = dp(48)
@@ -175,6 +185,7 @@ class MainActivity : Activity() {
         val endpoint = PrinterConfig.endpoint(this)
         address.text = getString(R.string.printer_address, endpoint.host, endpoint.port)
         duplex.text = getString(R.string.default_duplex, Duplex.label(PrinterConfig.duplex(this)))
+        rasterProfile.text = "Обработка изображения\n${RasterProfile.label(PrinterConfig.rasterProfile(this))} ›"
     }
     private fun editAddress() {
         if (engine.snapshot().busy) return
@@ -205,6 +216,14 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this).setTitle("Двусторонняя печать")
             .setSingleChoiceItems(modes.map(Duplex::label).toTypedArray(), modes.indexOf(PrinterConfig.duplex(this))) { dialog, index ->
                 PrinterConfig.saveDuplex(this, modes[index]); refreshSettings(); dialog.dismiss()
+            }.setNegativeButton("Отмена", null).show()
+    }
+    private fun chooseRasterProfile() {
+        if (engine.snapshot().busy) return
+        val modes = RasterProfile.modes
+        AlertDialog.Builder(this).setTitle("Обработка изображения")
+            .setSingleChoiceItems(modes.map(RasterProfile::label).toTypedArray(), modes.indexOf(PrinterConfig.rasterProfile(this))) { dialog, index ->
+                PrinterConfig.saveRasterProfile(this, modes[index]); refreshSettings(); dialog.dismiss()
             }.setNegativeButton("Отмена", null).show()
     }
     private fun searchPrinters() {
@@ -267,7 +286,7 @@ class MainActivity : Activity() {
     private fun confirmPrint() {
         if (engine.snapshot().busy) return
         AlertDialog.Builder(this).setTitle("Напечатать документ?")
-            .setMessage("Все страницы · A4 · 600 DPI\n${Duplex.label(PrinterConfig.duplex(this))}\n${PrinterConfig.endpoint(this).host}")
+            .setMessage("Все страницы · A4 · 600 DPI\n${Duplex.label(PrinterConfig.duplex(this))}\n${RasterProfile.label(PrinterConfig.rasterProfile(this))}\n${PrinterConfig.endpoint(this).host}")
             .setNegativeButton("Отмена", null).setPositiveButton("Печатать") { _, _ -> controller.printAll(PrinterConfig.endpoint(this)) }.show()
     }
     private fun diagnostics() {

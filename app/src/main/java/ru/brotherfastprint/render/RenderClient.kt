@@ -67,6 +67,7 @@ class RenderClient(private val context: Context) {
             val settings = Bundle().apply {
                 putInt("copies", options.copies); putIntArray("ranges", options.ranges)
                 putInt("duplex", options.duplex); putBoolean("toner_save", options.tonerSave); putLong("max_hbp_bytes", maxBytes)
+                putInt("raster_profile", options.rasterProfile)
             }
             ParcelFileDescriptor.open(pdf, ParcelFileDescriptor.MODE_READ_ONLY).use { input ->
                 val mode = ParcelFileDescriptor.MODE_READ_WRITE or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE

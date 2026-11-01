@@ -57,7 +57,7 @@ class Diagnostics(private val context: Context) {
         append("captured_utc=${Instant.now()} session=$session uptime_ms=${SystemClock.elapsedRealtime()}\n")
         append("api=${Build.VERSION.SDK_INT} manufacturer=${Build.MANUFACTURER} model=${Build.MODEL}\n")
         val endpoint = runCatching { PrinterConfig.endpoint(context) }.getOrNull()
-        append("printer_host=${endpoint?.host ?: "invalid"} raw_port=${endpoint?.port ?: 0} duplex=${PrinterConfig.duplex(context)}\n")
+        append("printer_host=${endpoint?.host ?: "invalid"} raw_port=${endpoint?.port ?: 0} duplex=${PrinterConfig.duplex(context)} raster_profile=${ru.brotherfastprint.core.RasterProfile.technicalName(PrinterConfig.rasterProfile(context))} toner_save=${PrinterConfig.tonerSave(context)}\n")
         append("journal_synced=$synced ${journal.health()}\n")
         append("\nprocess_exit_info:\n")
         if (Build.VERSION.SDK_INT < 30) append("unavailable api_below_30\n") else {

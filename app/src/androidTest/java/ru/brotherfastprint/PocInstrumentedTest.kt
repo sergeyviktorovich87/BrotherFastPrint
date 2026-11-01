@@ -16,6 +16,7 @@ import org.junit.Assert.*
 import ru.brotherfastprint.core.CancelScope
 import ru.brotherfastprint.core.PrintOptions
 import ru.brotherfastprint.core.Duplex
+import ru.brotherfastprint.core.RasterProfile
 import ru.brotherfastprint.render.RenderClient
 import ru.brotherfastprint.service.BrotherPrintService
 import ru.brotherfastprint.printing.ServiceDispatcher
@@ -120,6 +121,25 @@ class PocInstrumentedTest {
         assertTrue(info.exported)
         assertEquals("android.permission.BIND_PRINT_SERVICE", info.permission)
         assertTrue(info.metaData.getInt("android.printservice") != 0)
+    }
+
+    @Test fun testPhotoProfileTravelsThroughSandboxAndKeepsJobFraming() {
+        val dir = File(context.noBackupFilesDir, "photo_${System.nanoTime()}").apply { mkdirs() }
+        try {
+            val pdf = File(dir, "input.pdf")
+            CalibrationPdf.create(pdf, 1, CancelScope(), RasterProfile.PHOTO)
+            val hbp = File(dir, "job.hbp")
+            val events = mutableListOf<String>()
+            RenderClient(context).prepare(pdf, File(dir, "page.mono"), hbp, CancelScope(),
+                PrintOptions(rasterProfile = RasterProfile.PHOTO), 32L * 1024 * 1024,
+                { _, _ -> }, { synchronized(events) { events += it } })
+            val ascii = hbp.readBytes().toString(Charsets.ISO_8859_1)
+            assertEquals(1, "@PJL JOB NAME=".toRegex().findAll(ascii).count())
+            assertEquals(1, "@PJL EOJ NAME=".toRegex().findAll(ascii).count())
+            assertTrue(events.any { it.contains("raster_profile=1") })
+            assertTrue(events.any { it.contains("pdf_width_pt=595") })
+            assertTrue(events.any { it.contains("pdf_height_pt=842") })
+        } finally { dir.deleteRecursively() }
     }
 
     @Test fun testPdfStripeRenderingMatchesWholeBitmap() {

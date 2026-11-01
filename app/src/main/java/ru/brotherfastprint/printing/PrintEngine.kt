@@ -132,13 +132,14 @@ class PrintEngine(private val context: Context, private val diagnostics: Diagnos
     fun submit(endpoint: Endpoint, options: PrintOptions, origin: String, source: PdfSource,
                progress: (Int, Int) -> Unit = { _, _ -> }, finished: (PrintOutcome) -> Unit = {}): CancelScope {
         require(origin == "system" || origin == "direct")
+        RasterProfile.requireValid(options.rasterProfile)
         val token = CancelScope()
         val queuedAt = SystemClock.elapsedRealtime()
         synchronized(lock) { pending++ }
         publish()
         worker.execute {
             synchronized(lock) { current = token; started = SystemClock.elapsedRealtime(); lines.clear() }
-            log("job_received app_version=${BuildConfig.VERSION_NAME} source=$origin queued_ms=${SystemClock.elapsedRealtime() - queuedAt} copies=${options.copies} duplex=${options.duplex} dpi=600 paper=A4 mode=preload")
+            log("job_received app_version=${BuildConfig.VERSION_NAME} source=$origin queued_ms=${SystemClock.elapsedRealtime() - queuedAt} copies=${options.copies} duplex=${options.duplex} raster_profile=${RasterProfile.technicalName(options.rasterProfile)} toner_save=${options.tonerSave} dpi=600 paper=A4 mode=preload")
             synchronized(lock) { stage = "prepare"; page = 0; pages = 0 }
             var dir: File? = null
             val result = try {

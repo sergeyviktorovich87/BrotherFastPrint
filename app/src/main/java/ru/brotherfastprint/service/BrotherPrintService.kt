@@ -149,7 +149,7 @@ class BrotherPrintService : PrintService() {
             printJob.fail("Сохраните корректный IP и RAW-порт в BrotherFastPrint."); return
         }
         val ranges = info.pages?.flatMap { listOf(it.start, it.end) }?.toIntArray()
-        val options = PrintOptions(info.copies, ranges, PrinterConfig.tonerSave(this), attrs.duplexMode.takeIf { it != 0 } ?: PrinterConfig.duplex(this))
+        val options = PrintOptions(info.copies, ranges, PrinterConfig.tonerSave(this), attrs.duplexMode.takeIf { it != 0 } ?: PrinterConfig.duplex(this), PrinterConfig.rasterProfile(this))
         if (!printJob.start()) {
             engine.logService("system_job_start_rejected instance=$instance"); return
         }

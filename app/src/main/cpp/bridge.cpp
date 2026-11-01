@@ -89,7 +89,7 @@ Java_ru_brotherfastprint_render_NativeBridge_abortDocument(JNIEnv *, jobject) {
 
 extern "C" JNIEXPORT void JNICALL
 Java_ru_brotherfastprint_render_NativeBridge_appendMono(JNIEnv *env, jobject, jobject bitmap,
-                                                       jint rows, jint absolute_y, jint fd) {
+                                                       jint rows, jint absolute_y, jint fd, jint profile) {
     try {
         AndroidBitmapInfo info{};
         if (AndroidBitmap_getInfo(env, bitmap, &info) != ANDROID_BITMAP_RESULT_SUCCESS ||
@@ -102,7 +102,7 @@ Java_ru_brotherfastprint_render_NativeBridge_appendMono(JNIEnv *env, jobject, jo
             Pixels pixels(env, bitmap);
             bool premul = (info.flags & ANDROID_BITMAP_FLAGS_ALPHA_MASK) == ANDROID_BITMAP_FLAGS_ALPHA_PREMUL;
             fastprint::pack_rgba(static_cast<uint8_t *>(pixels.data), info.width, rows, info.stride,
-                                 absolute_y, premul, output.data());
+                                 absolute_y, premul, output.data(), static_cast<fastprint::RasterProfile>(profile));
         }
         write_all(fd, output.data(), output.size());
     } catch (const std::exception &) { throw_io(env, "Raster conversion failed"); }

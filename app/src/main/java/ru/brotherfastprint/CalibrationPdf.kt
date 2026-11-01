@@ -4,12 +4,14 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import ru.brotherfastprint.core.CancelScope
+import ru.brotherfastprint.core.RasterProfile
 import java.io.File
 import java.io.FileOutputStream
 
 object CalibrationPdf {
-    fun create(file: File, pages: Int, token: CancelScope) {
+    fun create(file: File, pages: Int, token: CancelScope, profile: Int = RasterProfile.DOCUMENTS) {
         require(pages in 1..50)
+        RasterProfile.requireValid(profile)
         val doc = PdfDocument()
         try {
             for (number in 1..pages) {
@@ -37,7 +39,20 @@ object CalibrationPdf {
                     c.drawRect(60f + i * 50, 270f, 110f + i * 50, 320f, paint)
                 }
                 paint.color = Color.BLACK; paint.textSize = 11f
-                c.drawText("Grayscale / Bayer 8x8 / no cloud processing", 60f, 350f, paint)
+                c.drawText("Profile: ${RasterProfile.technicalName(profile)}", 60f, 350f, paint)
+                // A smooth ramp and shadow patches expose tone clipping on paper.
+                for (i in 0..255) {
+                    paint.color = Color.rgb(i, i, i)
+                    val x = 60f + i * 400f / 256
+                    c.drawRect(x, 375f, x + 400f / 256 + 0.1f, 405f, paint)
+                }
+                for (i in 0..7) {
+                    val gray = i * 16
+                    paint.color = Color.rgb(gray, gray, gray)
+                    c.drawRect(60f + i * 50, 425f, 110f + i * 50, 460f, paint)
+                }
+                paint.color = Color.BLACK
+                c.drawText("Shadow detail: gray 0 / 16 / 32 / 48 / 64 / 80 / 96 / 112", 60f, 480f, paint)
                 paint.textSize = 96f
                 c.drawText(number.toString(), 230f, 560f, paint)
                 paint.textSize = 11f

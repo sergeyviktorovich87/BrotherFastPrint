@@ -16,5 +16,7 @@ for name in line block job; do
 done
 "$compiler" "${flags[@]}" tests/native/test_native.cpp app/src/main/cpp/encoder.cpp app/src/main/cpp/mono.cpp third_party/brlaser/src/job.cc third_party/brlaser/src/line.cc -o "$build_dir/test_native"
 "$build_dir/test_native"
+"$compiler" "${flags[@]}" tests/native/test_halftone.cpp app/src/main/cpp/mono.cpp -o "$build_dir/test_halftone"
+"$build_dir/test_halftone"
 "$compiler" "${flags[@]}" tests/native/make_fixture.cpp app/src/main/cpp/encoder.cpp third_party/brlaser/src/job.cc third_party/brlaser/src/line.cc -o "$build_dir/make_fixture"
 python3 tests/native/roundtrip.py "$build_dir/make_fixture"
