@@ -17,7 +17,11 @@ avdmanager create avd --force --name "$avd_name" \
     --path "$ANDROID_AVD_HOME/$avd_name.avd" \
     --package 'system-images;android-36;google_apis;x86_64' --device pixel_2 <<<'no'
 test -s "$ANDROID_AVD_HOME/$avd_name.ini"
-"$emulator_bin" -list-avds | rg --fixed-strings --line-regexp "$avd_name"
+"$emulator_bin" -list-avds >"$report_dir/avds.txt"
+python3 - "$report_dir/avds.txt" "$avd_name" <<'PY'
+import pathlib, sys
+assert sys.argv[2] in pathlib.Path(sys.argv[1]).read_text().splitlines(), 'Created AVD is not visible to emulator'
+PY
 "$adb_bin" start-server
 "$emulator_bin" -avd "$avd_name" -port 5554 -no-window -no-audio -no-boot-anim \
     -no-snapshot -gpu swiftshader -memory 3072 -cores 2 \
