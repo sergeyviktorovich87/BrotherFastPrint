@@ -114,7 +114,6 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
-      actions: write # Delete only the oversized, explicitly identified CI bootstrap artifact below.
     steps:
       - name: Check out the tagged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -125,8 +124,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 tools/publish_release.py "${GITHUB_REF_NAME#release/}"
-      - name: Remove the temporary emulator disk archive from bootstrap run 18
-        if: ${{ github.ref_name == 'release/v0.3.5-preview' || github.ref_name == 'v0.3.5-preview' }}
+
+  cleanup-bootstrap-report:
+    name: Remove the temporary emulator disk archive from bootstrap run 18
+    if: ${{ github.event_name == 'push' && github.repository == 'sergeyviktorovich87/BrotherFastPrint' && (github.ref_name == 'release/v0.3.5-preview' || github.ref_name == 'v0.3.5-preview') }}
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      actions: write
+    steps:
+      - name: Delete only the explicitly identified bootstrap artifact
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

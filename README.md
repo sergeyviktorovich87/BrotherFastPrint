@@ -96,6 +96,7 @@ GitHub Actions запускает host-тесты, сборку, JVM-тесты 
 ## Документация
 
 - [История изменений](CHANGELOG.md) и [подробный журнал версий](docs/CHANGELOG_RU.md).
+- [Проверки 0.3.5: выполненные Android-тесты и SHA-256 APK](docs/VALIDATION_0.3.5_RU.md).
 - [Проверки 0.3.2 и SHA-256 проверенного APK](docs/VALIDATION_RU.md).
 - [Устройство PrintService](docs/PRINT_SERVICE_RU.md) и [технический анализ](docs/TECHNICAL_ANALYSIS_RU.md).
 - [Подробные заметки по реализации](docs/DEVELOPMENT_NOTES_RU.md).
